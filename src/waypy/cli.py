@@ -77,9 +77,7 @@ def setup_logging():
 logger = setup_logging()
 
 
-def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
-    logger.info("Attempting to reload Waybar...")
-
+def kill_waybar(notify_event: threading.Event) -> int:
     try:
         result_kill = subprocess.run(
             ["pkill", "-x", "waybar"],
@@ -90,24 +88,62 @@ def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
         )
 
         if result_kill.returncode == 0:
-            logger.info("Killed existing Waybar process(es).")
+            logger.info("Killed existing Waybar process(es)")
+            notify_event.set()
+            return result_kill.returncode
         else:
             logger.warning(
                 "No Waybar process found to kill (or pkill returned non-zero)."
             )
-
+            return result_kill.returncode
     except Exception as e:
         logger.error(f"Error attempting to kill Waybar: {e}")
-        sys.exit(1)
+        return int(1)
 
+
+def start_waybar(
+    notify_event: threading.Event,
+    complete_event: threading.Event,
+    timeout: float = float(9.0),
+):
+    logger.info(f"Waiting for waybar process to terminate - Timeout: {str(timeout)}")
+    notify_event.wait(timeout=timeout)
     try:
         result_start = subprocess.Popen(
             ["waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         logger.info(f"Waybar started with PID {result_start.pid}.")
+        complete_event.set()
     except Exception as e:
         logger.error(f"Failed to start Waybar: {e}")
         sys.exit(1)
+
+
+def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
+    logger.info("Attempting to reload Waybar...")
+    timeout = float(10.0)
+    threads = []
+    complete_event: threading.Event = threading.Event()
+    notify_event: threading.Event = threading.Event()
+    kill_thread: threading.Thread = threading.Thread(
+        target=kill_waybar, kwargs={"notify_event": notify_event}
+    )
+    threads.append(kill_thread)
+    waybar_start_thread: threading.Thread = threading.Thread(
+        target=start_waybar, kwargs={"notify_event": notify_event, "timeout": timeout}
+    )
+    threads.append(waybar_start_thread)
+
+    logger.info("Starting threads")
+    for thread in threads:
+        thread.start()
+
+    logger.info("Joining threads")
+    for thread in threads:
+        thread.join(timeout=timeout)
+
+    complete_event.wait(timeout=float(timeout * 2))
+    logger.info("Waybar reload completed...")
 
 
 def completion_install(args, config):
