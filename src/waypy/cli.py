@@ -130,7 +130,12 @@ def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
     )
     threads.append(kill_thread)
     waybar_start_thread: threading.Thread = threading.Thread(
-        target=start_waybar, kwargs={"notify_event": notify_event, "timeout": timeout}
+        target=start_waybar,
+        kwargs={
+            "notify_event": notify_event,
+            "complete_event": complete_event,
+            "timeout": timeout,
+        },
     )
     threads.append(waybar_start_thread)
 
