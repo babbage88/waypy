@@ -68,7 +68,7 @@ def setup_logging():
     handler.setFormatter(formatter)
 
     logger = logging.getLogger("waypy")
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(handler)
     logger.propagate = False
     return logger
@@ -77,7 +77,7 @@ def setup_logging():
 logger = setup_logging()
 
 
-def waybar_reload(args):
+def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
     logger.info("Attempting to reload Waybar...")
 
     try:
@@ -110,30 +110,43 @@ def waybar_reload(args):
         sys.exit(1)
 
 
-def completion_install(args):
+def completion_install(args, config):
     shell_path = os.environ.get("SHELL", "")
     detected_shell = os.path.basename(shell_path)
 
     logger.info(f"Detected shell: {detected_shell}")
 
-    if detected_shell not in ["bash", "zsh"]:
-        logger.warning(
-            "Your shell is not explicitly supported by this helper. Supported: bash, zsh"
-        )
+    eval_line = 'eval "$(register-python-argcomplete waypy)"'
 
-    logger.info("To enable completion temporarily, run:")
-    logger.info(Fore.CYAN + '  eval "$(register-python-argcomplete waypy)"')
-
-    logger.info("To enable completion permanently:")
-
+    rc_file = None
     if detected_shell == "bash":
-        logger.info("  Add this to your ~/.bashrc or ~/.bash_profile:")
-        logger.info(Fore.CYAN + '  eval "$(register-python-argcomplete waypy)"')
+        rc_file = Path.home() / ".bashrc"
     elif detected_shell == "zsh":
-        logger.info("  Add this to your ~/.zshrc:")
-        logger.info(Fore.CYAN + '  eval "$(register-python-argcomplete waypy)"')
+        rc_file = Path.home() / ".zshrc"
     else:
-        logger.info("  Add eval line to your shell's rc file.")
+        logger.warning("Your shell is not explicitly supported. Supported: bash, zsh")
+        logger.info(
+            f"Please add the following line manually to your shell rc file:\n{eval_line}"
+        )
+        return
+
+    # Ensure rc file exists
+    if not rc_file.exists():
+        logger.info(f"{rc_file} does not exist, creating it.")
+        rc_file.touch()
+
+    # Check if line is already present
+    with rc_file.open("r") as f:
+        lines = f.read().splitlines()
+
+    if any(eval_line in line for line in lines):
+        logger.info(f"Autocompletion already configured in {rc_file}. No changes made.")
+    else:
+        with rc_file.open("a") as f:
+            f.write(f"\n# Waypy autocompletion\n{eval_line}\n")
+        logger.info(f"Autocompletion added to {rc_file}.")
+        logger.info("You may need to restart your shell or source the rc file:")
+        logger.info(Fore.CYAN + f"  source {rc_file}")
 
 
 def build_parser():
@@ -142,10 +155,18 @@ def build_parser():
         description="CLI + TUI tool for managing Waybar and Hyprland configuration.",
     )
 
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help=f"Path to config YAML file (default: {DEFAULT_CONFIG_PATH})",
+    )
+
     subparsers = parser.add_subparsers(
         dest="component", required=True, help="Component to manage"
     )
 
+    # Waybar
     waybar_parser = subparsers.add_parser("waybar", help="Manage Waybar")
     waybar_subparsers = waybar_parser.add_subparsers(
         dest="waybar_command", required=True, help="Waybar commands"
@@ -156,18 +177,19 @@ def build_parser():
     )
     waybar_reload_parser.set_defaults(func=waybar_reload)
 
+    # Hyprland placeholder
     hyprland_parser = subparsers.add_parser("hyprland", help="Manage Hyprland")
     hyprland_subparsers = hyprland_parser.add_subparsers(
         dest="hyprland_command", help="Hyprland commands"
     )
 
+    # Completion
     completion_parser = subparsers.add_parser(
         "completion", help="Install autocompletion support"
     )
     completion_subparsers = completion_parser.add_subparsers(
         dest="completion_command", required=True
     )
-
     install_parser = completion_subparsers.add_parser(
         "install", help="Show instructions or install autocompletion"
     )
@@ -181,7 +203,11 @@ def main():
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
+    # Load config
+    config = WaypyConfig(args.config)
+    logger.debug(f"Loaded config: {config}")
+
     if hasattr(args, "func"):
-        args.func(args)
+        args.func(args, config)
     else:
         parser.print_help()
