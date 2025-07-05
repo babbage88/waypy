@@ -1,0 +1,14 @@
+[project]
+name = "waypy"
+version = "0.0.1"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "argcomplete>=3.6.2",
+    "colorama>=0.4.6",
+ "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+waypy = "waypy.cli:main"
