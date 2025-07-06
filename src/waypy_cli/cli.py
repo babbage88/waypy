@@ -74,8 +74,8 @@ class WaypyConfig:
             logger.warning(
                 f"Config file {self.path} does not exist. Using defaults if available."
             )
-            self.waybar_configs_dir = str(Path(DEFAULT_WAYPY_DIR, "waybar_configs_dir").absolute())
-            self.hyprland_configs_dir = str(Path(DEFAULT_WAYPY_DIR, "hyprland_configs_dir").absolute())
+            self.waybar_configs_dir = str(Path(DEFAULT_WAYPY_DIR, "profiles", "waybar").absolute())
+            self.hyprland_configs_dir = str(Path(DEFAULT_WAYPY_DIR, "profiles", "hyprland").absolute())
             self.backups_path = str(Path(DEFAULT_WAYPY_DIR, "backups").absolute())
             return
 
