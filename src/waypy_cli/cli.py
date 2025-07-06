@@ -39,8 +39,11 @@ class WaybarProfile:
                 shutil.copyfile(str(item.absolute()), str(backup_path))
 
     def deploy_profile(self):
+        logger.info("Starting waybar config backup")
         self.backup_existing()
+        logger.info(f"deploying config {self.config_path}")
         shutil.copyfile(self.config_path, WAYBAR_ACTIVE_CONFIG_FILE)
+        logger.info(f"deploying stying {self.css_path}")
         shutil.copyfile(self.css_path, WAYBAR_ACTIVE_CSS_FILE)
         self.reload_waybar()
 
