@@ -62,8 +62,6 @@ class WaybarProfile:
         for thread in threads:
             thread.join(timeout=timeout)
 
-
-
 class WaypyConfig:
     def __init__(self, path):
         self.path: Path = path
