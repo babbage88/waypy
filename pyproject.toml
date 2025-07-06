@@ -7,8 +7,10 @@ requires-python = ">=3.13"
 dependencies = [
     "argcomplete>=3.6.2",
     "colorama>=0.4.6",
- "pyyaml>=6.0.2",
+    "pyyaml>=6.0.2",
+    "textual>=3.5.0",
+    "textual-dev>=1.7.0",
 ]
 
 [project.scripts]
-waypy = "waypy.cli:main"
+waypy = "waypy_cli.cli:main"
