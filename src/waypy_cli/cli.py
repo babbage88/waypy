@@ -1,4 +1,5 @@
 import argparse
+import time
 from typing import List
 import argcomplete
 import subprocess
@@ -49,7 +50,7 @@ class WaybarProfile:
         notify_event: threading.Event = threading.Event()
         kill_thread: threading.Thread = threading.Thread(target=kill_waybar, kwargs={"notify_event": notify_event})
         threads.append(kill_thread)
-        start_thread: threading.Thread = threading.Thread(target=start_waybay, kwargs={"notify_event": notify_event, "timeout":timeout})
+        start_thread: threading.Thread = threading.Thread(target=start_waybar, kwargs={"notify_event": notify_event, "timeout":timeout})
         threads.append(start_thread)
 
         for thread in threads:
@@ -146,43 +147,59 @@ def kill_waybar(notify_event: threading.Event) -> int:
             notify_event.set()
             return result_kill.returncode
         else:
-            logger.warning(
-                "No Waybar process found to kill (or pkill returned non-zero)."
-            )
+            logger.warning("No Waybar process found to kill, attempting to start....")
+            notify_event.set()
             return result_kill.returncode
     except Exception as e:
         logger.error(f"Error attempting to kill Waybar: {e}")
         return int(1)
 
 
-def start_waybay(notify_event: threading.Event, timeout: float = 9.0):
+def start_waybar(
+    notify_event: threading.Event,
+    complete_event: threading.Event,
+    timeout: float = float(9.0),
+):
     logger.info(f"Waiting for waybar process to terminate - Timeout: {str(timeout)}")
     notify_event.wait(timeout=timeout)
     try:
-        result_start = subprocess.Popen(
-            ["waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        result_start = subprocess.Popen(["hyprctl", "dispatch", "exec", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         logger.info(f"Waybar started with PID {result_start.pid}.")
+        complete_event.set()
     except Exception as e:
         logger.error(f"Failed to start Waybar: {e}")
         sys.exit(1)
 
-
 def waybar_reload(args: argparse.Namespace, config: WaypyConfig):
     logger.info("Attempting to reload Waybar...")
-    threads: List[threading.Thread] = []
+    timeout = float(10.0)
+    threads = []
+    complete_event: threading.Event = threading.Event()
     notify_event: threading.Event = threading.Event()
-    kill_thread: threading.Thread = threading.Thread(target=kill_waybar, kwargs={"notify_event": notify_event})
+    kill_thread: threading.Thread = threading.Thread(
+        target=kill_waybar, kwargs={"notify_event": notify_event}
+    )
     threads.append(kill_thread)
-    start_thread: threading.Thread = threading.Thread(target=start_waybay, kwargs={"notify_event": notify_event, "timeout":float(9.0)})
-    threads.append(start_thread)
+    waybar_start_thread: threading.Thread = threading.Thread(
+        target=start_waybar,
+        kwargs={
+            "notify_event": notify_event,
+            "complete_event": complete_event,
+            "timeout": timeout,
+        },
+    )
+    threads.append(waybar_start_thread)
 
+    logger.info("Starting threads")
     for thread in threads:
         thread.start()
 
+    logger.info("Joining threads")
     for thread in threads:
-        thread.join(timeout=9.0)
+        thread.join(timeout=timeout)
 
+    complete_event.wait(timeout=float(timeout * 2))
+    logger.info("Waybar reload completed...")
 
 def completion_install(args, config):
     shell_path = os.environ.get("SHELL", "")
